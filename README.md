@@ -71,7 +71,7 @@ Originally, in measurement circuits, shunt resistors were used in analog
 ammeters.  A sensitive meter with sensitive needle movement could only handle
 very tiny current.  A low-value "shunt" resistor was therefore placed in
 parallel to bypass (or shunt) most of the current, so the meter only saw a safe
-fraction.  By calibrating the ratio, read large currents could be read with a
+fraction.  By calibrating the ratio, large currents could be read with a
 small meter.
 
 ### How it works
@@ -261,9 +261,12 @@ Many cheap INA219 modules ship with 0.1 Ohm or 0.01 Ohm shunts.
 - For low-current applications (milliamps), a larger shunt (e.g. 0.5–1.0 Ohm)
 increases sensitivity and resolution, but lowers the maximum measurable current
 (≈80 mA with a 1 Ohm shunt) and burns more power in the resistor itself.
-**IMPORTANT:** Always update the calibration constant in the code after changing
-the shunt. The INA219 cannot detect it, and the driver does not store these
-values permanently.
+
+> [!IMPORTANT]
+> If the shunt is changed, always add a line to the beginning of the code to
+> set the shunt resistor value every boot.  The INA219 cannot detect it, and
+> the driver does not store these values permanently.
+
 
 ## Shunt Resistor Values
 The following table illustrates consequences to current measurement using some sample shunt resistor values:
