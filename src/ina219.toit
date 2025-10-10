@@ -369,18 +369,6 @@ class Ina219:
   clear-conversion-ready -> none:
     raw := read-register_ REG-POWER_
 
-
-
-
-
-
-
-
-
-
-
-
-
   /**
   Whether a math overflow exists.  (Reading consumes it.)
   */

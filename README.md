@@ -57,14 +57,7 @@ Given their similarity, driver library for sibling models were written at the sa
 | **ADC / resolution**  | 9 to 12-bit depending on the register, and averaging/ sampling option selected. | 16-bit | 13-bit |
 | **Alerting/Alert pin** | None. "Conversion Ready" exists, but must be checked in software. | Alerts and Alert Pin, but different features from INA3221. | Alerts and Alert pin, but different features from INA226  |
 | **Possible I2C addresses** | 16 | 16 | 4 |
-
-
-Links:
-- [INA219 Datasheet](https://www.ti.com/lit/gpn/INA219)
-- [INA226 Datasheet](https://www.ti.com/lit/gpn/INA226)
-- [INA3221 Datasheet](https://www.ti.com/lit/ds/symlink/ina3221.pdf)
-
-
+| **Datasheets** | [INA219 Datasheet](https://www.ti.com/lit/gpn/INA219) | [INA226 Datasheet](https://www.ti.com/lit/gpn/INA226) | [INA3221 Datasheet](https://www.ti.com/lit/ds/symlink/ina3221.pdf) |
 
 ## Core Concepts
 
@@ -100,7 +93,7 @@ these values in its registers which the driver retrieves using I2C.
 The device has two measuring modes: Continuous and Triggered, as well as
 combinations of measuring both the bus and shunt voltage. (Use
 `set-measure-mode` to configure these.) Alongside, `set-measure-mode
-MODE-POWER-OFF` will turn the device off.
+MODE-POWER-DOWN` will turn the device off.
 
 ### Continuous Mode
 In continuous modes `MODE-BUS-CONTINUOUS`, `MODE-SHUNT-CONTINUOUS` and
@@ -141,15 +134,6 @@ power systems where periodic measurement isn't needed. Use `set-measure-mode
 MODE-POWER-OFF` to shutdown.  Start again by setting the required measure mode
 using `set-measure-mode MODE-TRIGGERED` or `set-measure-mode MODE-CONTINUOUS`
 
-### Mode Power Consumption
-
-  Mode         | Typical Supply Current | Description
-  -------------|------------------------|------------------------------------------------------
-  Power-Down   | 0.1 uA (typical)	        | Device is essentially off, no conversions occur.
-  Triggered    | appx 330 uA per conversion   | Device wakes up, performs one measurement (shunt or bus or both), then returns to power-down.
-  Continuous   | appx 420 uA (typical)	    | Device continuously measures shunt and/or bus voltages.
-
-
 ## Features
 
 ### Shunt Resistor Configuration
@@ -169,22 +153,41 @@ constructor:
 ```
 Please see below for example resistor values.
 
-### Sampling Rates
-The INA219 ADC can average samples together to lower noise and improve accuracy:
-averaging many (from 1 to 1024 samples) digitally filters the ADC results. More
-averages means less noise readings, but also means slower conversion. Configure
-this using the `AVERAGE-**` statics with `get-sampling-rate` and
-`set-sampling-rate`.
+### Sampling and Averaging
+On INA219, the ADC settings are quite constrained.  They are selected with a specific set of presets, combines resolution (9/10/11/12-bit) and averaging (1…128 samples) with a single conversion time (84us to 68.1 ms).  In other words, averaging and conversion time aren’t set independently; they are picked from the predefined pairs.  These are:
+| **Configuration Constant** | **Modes** | **Sample rate** | **Conversion Time**|
+|-----------|-|-|-|
+| ADC-RES-AVG-M9-84 |9 bit|1|84us|
+| ADC-RES-AVG-M10-148 |10 bit|1|148us|
+| ADC-RES-AVG-M11-276 |11 bit|1|276us|
+| ADC-RES-AVG-M12-532 |12 bit|1|532us|
+| ADC-RES-AVG-S2-1060 |12 bit|2|1060us (eg 1.06ms)|
+| ADC-RES-AVG-S4-2130 |12 bit|4|2130us|
+| ADC-RES-AVG-S8-4260 |12 bit|8|4260us|
+| ADC-RES-AVG-S16-8510 |12 bit|16|8150us|
+| ADC-RES-AVG-S32-17020 |12 bit|32|17020us|
+| ADC-RES-AVG-S64-34050 |12 bit|64|34050us|
+| ADC-RES-AVG-S128-68100 |12 bit|128|68100us (eg 68.1ms)|
 
-### Conversion Time
-The INA219 has an ADC (Analog-to-Digital Converter) inside. Each measurement
-("conversion") of shunt and bus voltages takes some time, depending on how many
-internal samples are averaged.  The conversion time setting tells the ADC how
-long to spend on a single measurement of either the shunt voltage or the bus
-voltage.  Use `TIMING-xxx` statics with the `set-bus-conversion-time` and
-`set-shunt-conversion-time` functions.
-- Longer time = more samples averaged inside = less noise, higher resolution.
-- Shorter time = fewer samples = faster updates, but noisier.
+They can be set in this way:
+```Toit
+ina219-driver.set-shunt-voltage-pga-gain-range Ina219.SHUNT-VOLTAGE-PGA-G1-R40
+ina219-driver.set-bus-voltage-pga-gain-range Ina219.SHUNT-VOLTAGE-PGA-G1-R40
+```
+
+### Bus Voltage Range
+
+- 16v using `set-bus-voltage-fs-range 16`
+- 32v using `set-bus-voltage-fs-range 32`
+
+### PGA Gain and Range
+
+| **Configuration Constant** | **Gain** | **Range** |
+|-----------|-|-|
+| SHUNT-VOLTAGE-PGA-G1-R40 |1|40mv|
+| SHUNT-VOLTAGE-PGA-G2-R80 |/2|80mv|
+| SHUNT-VOLTAGE-PGA-G4-R160 |/4|160mv|
+| SHUNT-VOLTAGE-PGA-G8-R320 |/8|320mv|
 
 ### Conversion Ready/Waiting time
 Although the registers can be read at any time, and the data from the last
