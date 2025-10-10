@@ -1,0 +1,4 @@
+name: ina219
+description: Support for I2C INA219 current/voltage measuring IC.
+environment:
+  sdk: ^2.0.0-alpha.188

@@ -1,0 +1,3 @@
+dependencies:
+  ina219:
+    path: ..
