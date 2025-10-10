@@ -4,9 +4,9 @@ Sensor.
 
 ## About the Device
 The INA219 from Texas Instruments is a digital power monitor with an integrated
-ADC.  It measures the voltage drop across a shunt resistor to calculate current,
-monitors the bus voltage directly, and internally multiplies the two to report
-power consumption.
+  ADC.  It measures the voltage drop across a shunt resistor to calculate
+  current, monitors the bus voltage directly, and internally multiplies the two
+  to report power consumption.
 
 ## Quick Start Information
 Use the following steps to get operational quickly:
@@ -58,6 +58,7 @@ Given their similarity, driver library for sibling models were written at the sa
 | **Alerting/Alert pin** | None. "Conversion Ready" exists, but must be checked in software. | Alerts and Alert Pin, but different features from INA3221. | Alerts and Alert pin, but different features from INA226  |
 | **Possible I2C addresses** | 16 | 16 | 4 |
 | **Datasheets** | [INA219 Datasheet](https://www.ti.com/lit/gpn/INA219) | [INA226 Datasheet](https://www.ti.com/lit/gpn/INA226) | [INA3221 Datasheet](https://www.ti.com/lit/ds/symlink/ina3221.pdf) |
+| **Other Notes** | - | - | Has no calibration register - current/power must be calculated in the driver.  Adds 'Power-Valid' window and Summation features.
 
 ## Core Concepts
 
@@ -146,7 +147,7 @@ instance (in Ohms) e.g.,
 This also takes care of configuring the calibration value. (Advanced users can
 set this manually using `set-calibration-value`.)  The driver takes care of
 computig and configuring the calibration value based on the shunt resistor
-values. The devie can also be configured to into the required mode using its
+values. The device can also be configured to into the required mode using its
 constructor:
 ```Toit
   ina219-driver := Ina219 ina219-device --measure-mode=MODE-SHUNT-BUS-TRIGGERED
@@ -176,18 +177,33 @@ ina219-driver.set-bus-voltage-pga-gain-range Ina219.SHUNT-VOLTAGE-PGA-G1-R40
 ```
 
 ### Bus Voltage Range
-
+This device allows a configuration to select a greater sensitivity, but with reduced range (Referred to as BRNG in the Datasheet):
 - 16v using `set-bus-voltage-fs-range 16`
-- 32v using `set-bus-voltage-fs-range 32`
+- 32v (default) using `set-bus-voltage-fs-range 32`
+
+*Tip*: If your rail never exceeds 14v, set this to 16v for slightly improved sensitivity.  Otherwise keep the full-scale range at 32v.
+
 
 ### PGA Gain and Range
+PGA (Programmable Gain Amplifier) is a small internal differential amplifier
+sitting between the shunt resistor and the ADC.  Its job is to amplify the small
+voltage across the shunt so that the ADC can measure it more accurately.  At a
+lower range, the ADC’s full 12-bit scale is used over a smaller voltage window,
+which means finer current resolution.
 
-| **Configuration Constant** | **Gain** | **Range** |
-|-----------|-|-|
-| SHUNT-VOLTAGE-PGA-G1-R40 |1|40mv|
-| SHUNT-VOLTAGE-PGA-G2-R80 |/2|80mv|
-| SHUNT-VOLTAGE-PGA-G4-R160 |/4|160mv|
-| SHUNT-VOLTAGE-PGA-G8-R320 |/8|320mv|
+| **Configuration Constant** | **Use Case** | **Gain** | **Range** | **Reason** |
+|-----------|-|-|-|-|
+| SHUNT-VOLTAGE-PGA-G1-R40 | Precision micro/milliamp|1|40mv| Maximum ADC sensitivity, small signals.
+| SHUNT-VOLTAGE-PGA-G2-R80 | Low-current (<500ma) |/2|80mv| Better resolution, typical with 0.1–0.5 Ω shunt.
+| SHUNT-VOLTAGE-PGA-G4-R160 | Mid-current (0.5-3 A) |/4|160mv| Improves ADC granularity for low currents.
+| SHUNT-VOLTAGE-PGA-G8-R320 **(Default)** | High-current (>3 A) |/8|320mv|Prevent clipping at high drop, typical 0.1 Ω shunt.
+
+
+**Example configuration:** Set this alongside the other values when initially
+instantiating the driver, like this:
+```Toit
+ina219-driver.set-shunt-voltage-pga-gain-range Ina219.SHUNT-VOLTAGE-PGA-G1-R40
+```
 
 ### Conversion Ready/Waiting time
 Although the registers can be read at any time, and the data from the last
@@ -217,17 +233,19 @@ the shunt).  If the module in use different (VBUS not tied to IN−), the meanin
 below still hold, although "bus voltage" would then refer to whatever is wired
 to VBUS.
 
-- **read-shunt-voltage:** The voltage drop across the shunt: Vshunt = IN+ − IN−.
-- **read-bus-voltage:** The "load node" voltage. If VBUS is not tied to IN−, the
-function returns whatever VBUS is wired to.
-- **read-supply-voltage:** The upstream/source voltage *before* the shunt
+- `read-shunt-voltage`: The voltage drop across the shunt: Vshunt = IN+ − IN−.
+  Given in Volts
+- `read-bus-voltage`: The "load node" voltage. If VBUS is not tied to IN−, the
+  function returns whatever VBUS is wired to.  Given in Volts.
+- `read-supply-voltage`: The upstream/source voltage *before* the shunt
 (Vsupply ≈ Vbus + Vshunt = (voltage at IN−) + (IN+ − IN−) = voltage at IN+.
-- **read-shunt-current:** The current through the shunt and load load, in amps.
+Given in Volts.
+- `read-shunt-current`: The current through the shunt and load load, in amps.
 Internally, the chip uses a calibration constant set from the configured shunt
-resistor value. Caveats:
+resistor value. Given in Amps. Caveats:
   - Accurate only if shunt value in code matches the physical shunt.
   - Choose appropriate averaging/conversion time for scenario.
-- **read-load-power:** Power delivered to the load, in watts. Caveats:
+- `read-load-power`: Power delivered to the load, in watts. Caveats:
   - Because Vbus is after the shunt, this approximates power at the load (not at
   the source).
   - Depends on correct calibration.  (Calibration values are care of in this
@@ -247,24 +265,30 @@ increases sensitivity and resolution, but lowers the maximum measurable current
 the shunt. The INA219 cannot detect it, and the driver does not store these
 values permanently.
 
-Specifically: using the INA219’s shunt measurement specs:
-- Shunt voltage LSB = 2.5 uV
-- Shunt voltage max = ±81.92 mV
-
-### Shunt Resistor Values
-Specifically: using the INA219’s shunt measurement specs....
-- Shunt voltage LSB = 2.5 uV
-- Shunt voltage max = ±81.92 mV
-
-....the following table illustrates consequences to current measurement with some sample shunt resistor values:
+## Shunt Resistor Values
+The following table illustrates consequences to current measurement using some sample shunt resistor values:
 
 Shunt Resistor (SR) | Max Measurable Current | Shunt Resistor Wattage Requirement  | Resolution per bit | Note
---------------------|------------------------|------------------|--------------------|------------------------------------------
-1.000 Ohm	        | 81.92 mA               | 0.125w (min)     | 2.5 uA/bit         | Very fine resolution, only good for small currents (<0.1 A).
-0.100 Ohm (default) | 0.8192 A               | 0.125 W (min) 0.25 W (safer) | 25 uA/bit          | Middle ground; good for sub-amp measurements.
-0.050 Ohm           | 1.6384 A               | 0.25 W (min) 0.5 W (safer) | 50 uA/bit          | Wider range; 0.25 W resistor recommended, or higher for margin.
-0.010 Ohm           | 8.192 A                | 1 W (min) 2 W (preferred) | 250 uA/bit         | High range but coarser steps. Use ≥1 W shunt - mind heating & layout.
+-|-|-|-|-
+1.000 Ohm | 0.320 mA | 0.25w (min) | 10 uA/bit | Very fine resolution, but higher voltage drop.
+0.100 Ohm (default) | 3.20 A | Use 2 W | 100 uA/bit  | Common value in modules, good general purpose range.
+0.050 Ohm | 6.40 A  | 3-5 W (impractical?) | 200 uA/bit | Wider current range; check module copper and heating.
+0.010 Ohm | 32.0 A  | 10.2 W - heavy shunt needed | 1 mA/bit | For high-current rails, usually needing an external precision shunt.
 
+## Issues
+If there are any issues, changes, or any other kind of feedback, please
+[raise an issue](toit-ina219/issues). Feedback is welcome and appreciated!
+
+## Disclaimer
+- This driver has been written and tested with an unbranded INA226 module.
+- All trademarks belong to their respective owners.
+- No warranties for this work, express or implied.
+
+## Credits
+- [Florian](https://github.com/floitsch) for the tireless help and encouragement
+- The wider Toit developer team (past and present) for a truly excellent product
+- AI has been used for code and text reviews, analysing and compiling data and
+  results, and assisting with ensuring accuracy.
 
 ## About Toit
 One would assume you are here because you know what Toit is.  If you dont:
@@ -275,7 +299,3 @@ One would assume you are here because you know what Toit is.  If you dont:
 > ESP32. [[link](https://toitlang.org/)]
 - [Review on Soracom](https://soracom.io/blog/internet-of-microcontrollers-made-easy-with-toit-x-soracom/)
 - [Review on eeJournal](https://www.eejournal.com/article/its-time-to-get-toit)
-
-## Credits
-- [Florian](https://github.com/floitsch) for the tireless help and encouragement
-- The wider Toit developer team (past and present) for a truly excellent product
