@@ -174,9 +174,12 @@ On INA219, the ADC settings are quite constrained.  They are selected with a spe
 
 They can be set in this way:
 ```Toit
-ina219-driver.set-shunt-voltage-pga-gain-range Ina219.SHUNT-VOLTAGE-PGA-G1-R40
-ina219-driver.set-bus-voltage-pga-gain-range Ina219.SHUNT-VOLTAGE-PGA-G1-R40
+ina219-driver.set-bus-adc-resolution-average Ina219.ADC-RES-AVG-M9-84
+ina219-driver.set-shunt-adc-resolution-average Ina219.ADC-RES-AVG-S64-34050
 ```
+If conversion time is especially important in your project, note that the
+conversion times don't interleave, they are performed one at a time and add to
+eachother.
 
 ### Bus Voltage Range
 This device allows a configuration to select a greater sensitivity, but with reduced range (Referred to as BRNG in the Datasheet):
