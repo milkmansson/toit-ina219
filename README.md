@@ -2,6 +2,8 @@
 Toit Driver Library for an INA219 module, DC Shunt Current, Voltage, and Power
 Sensor.
 
+![Front and back of one version of the INA219 module](images/ina219.jpg)
+
 ## About the Device
 The INA219 from Texas Instruments is a digital power monitor with an integrated
   ADC.  It measures the voltage drop across a shunt resistor to calculate
