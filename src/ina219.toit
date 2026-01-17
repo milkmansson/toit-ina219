@@ -516,14 +516,15 @@ class Ina219:
    INA219 registers are big-endian. If the mask is left at 0xFFFF and offset at
    0x0, it is treated as a write to the whole register.
   */
-  write-register_ register/int value/any --mask/int=0xFFFF --offset/int=(mask.count-trailing-zeros) -> none:
+  write-register_ register/int value/int --mask/int=0xFFFF --offset/int=(mask.count-trailing-zeros) -> none:
     // find allowed value range within field
     max/int := mask >> offset
     // check the value fits the field
     assert: ((value & ~max) == 0)
+    assert: v >= 0 and v <= max
 
     if (mask == 0xFFFF) and (offset == 0):
-      reg_.write-u16-be register (value & 0xFFFF)
+      reg_.write-u16-be register value
     else:
       new-value/int := reg_.read-u16-be register
       new-value     &= ~mask
