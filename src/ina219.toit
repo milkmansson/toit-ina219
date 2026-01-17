@@ -355,10 +355,12 @@ class Ina219:
   Returns whether a conversion is complete.
 
   Although the device can be read at any time, and the data from the last
-   conversion is available, the Conversion Ready Flag bit is provided to help
-   coordinate one-shot or triggered conversions. The Conversion Ready Flag bit
-   is set after all conversions, averaging, and multiplications are complete.
-   Conversion Ready Flag bit clears under the following conditions:
+   conversion is available, the 'Conversion Ready Flag' bit is provided to help
+   coordinate one-shot or triggered conversions.  The Conversion Ready Flag bit
+   is set after all conversions, averaging, and multiplications are complete,
+   and this function returns the value of this bit.
+
+   It clears under the following conditions:
     1. Writing to the Configuration Register (except when Power-Down).
     2. Reading the Power Register (Implemented in $clear-conversion-ready).
   */
