@@ -493,6 +493,10 @@ class Ina219:
 
   All INA219 registers are big-endian. If the mask is left at 0xFFFF and offset
    at 0x0, it is treated as a read from the whole register.
+
+  If $signed is true, the value is returned as a two's complement value.  With
+   a partial mask, the masked field itself is sign-extended (for example a
+   13 bit field reads as -4096 to 4095).
   */
   read-register_ register --mask=0xFFFF --offset=(mask.count-trailing-zeros) --signed=false -> any:
     raw-value := ?
@@ -506,6 +510,11 @@ class Ina219:
       return raw-value
     else:
       masked-value := (raw-value & mask) >> offset
+      if signed:
+        // The masking above dropped the sign extension of the 16-bit read, so
+        // sign-extend the field itself.
+        range := (mask >> offset) + 1
+        if masked-value >= range / 2: masked-value -= range
       //logger_.debug "read-register_:"  --tags={ "register" : register , "register-value" : raw-value, "mask" : mask , "offset" : offset}
       return masked-value
 
@@ -521,7 +530,6 @@ class Ina219:
     max/int := mask >> offset
     // check the value fits the field
     assert: ((value & ~max) == 0)
-    assert: v >= 0 and v <= max
 
     if (mask == 0xFFFF) and (offset == 0):
       reg_.write-u16-be register value
