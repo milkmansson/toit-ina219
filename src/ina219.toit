@@ -20,6 +20,8 @@ class Ina219:
 
   /** 'Power Down' mode - used while configuring $set-measure-mode. */
   static MODE-POWER-DOWN           ::= 0b000
+  /** 'ADC off' mode - conversions disabled. */
+  static MODE-ADC-OFF              ::= 0b100
   /** Shunt voltage only in Triggered mode - used while configuring $set-measure-mode. */
   static MODE-SHUNT-TRIGGERED      ::= 0b001
   /** Bus voltage only in Triggered mode - used while configuring $set-measure-mode. */
@@ -206,6 +208,8 @@ class Ina219:
   */
   set-shunt-voltage-pga-gain-range mode/int -> none:
     write-register_ REG-CONFIG_ mode --mask=CONF-SHUNT-VOLTAGE-PGA-MASK_
+    // Full-scale current depends on the PGA range, so recalibrate.
+    set-shunt-resistor_ shunt-resistor_
 
   get-shunt-voltage-pga-gain-range -> int:
     return read-register_ REG-CONFIG_ --mask=CONF-SHUNT-VOLTAGE-PGA-MASK_
@@ -247,13 +251,18 @@ class Ina219:
     shunt-resistor_ = resistor
     // Cache to class-wide for later use.
     max_current_ = max-current
-    // Cache LSB of max current selection (amps per bit).
-    current-lsb_ = max-current_ / 32767.0
-    // Calculate new calibration value and set in the IC
-    new-calibration-value/int := (INTERNAL_SCALING_VALUE_ / (current-lsb_ * resistor)).round
-    set-calibration-value_ (clamp-value_ new-calibration-value --lower=1 --upper=0xFFFF)
-    // Cache new power multiplier/LSB
-    power-lsb_   = POWER_LSB_MULTIPLIER_ * current-lsb_
+    // Ideal LSB of max current selection (amps per bit): Max Current / 2^15.
+    ideal-lsb/float := max-current_ / 32768.0
+    // Cal = trunc(0.04096 / (Current_LSB * R_shunt)). Bit 0 of the register is
+    // void (always reads 0), so only even values can be stored.
+    new-calibration-value/int := (INTERNAL-SCALING-VALUE_ / (ideal-lsb * resistor)).to-int
+    new-calibration-value = (clamp-value_ new-calibration-value --lower=2 --upper=0xFFFE) & 0xFFFE
+    set-calibration-value_ new-calibration-value
+    // Truncation changes the LSB slightly, so derive the LSB actually in effect
+    // from the stored calibration value.
+    current-lsb_ = INTERNAL-SCALING-VALUE_ / (new-calibration-value * resistor)
+    // Cache new power multiplier/LSB: Power_LSB = 20 * Current_LSB.
+    power-lsb_   = POWER-LSB-MULTIPLIER_ * current-lsb_
 
   /**
   Returns upstream voltage, before the shunt (IN+).
@@ -302,14 +311,14 @@ class Ina219:
   */
   read-load-power -> float:
     value := reg_.read-u16-be REG-POWER_
-    return (value * power-lsb_).to-float
+    return value * power-lsb_
 
   /**
   Waits for 'conversion-ready', with a maximum wait of $get-estimated-conversion-time-ms.
   */
   wait-until-conversion-completed --max-wait-time-ms/int=(get-estimated-conversion-time-ms) -> none:
     current-wait-time-ms/int := 0
-    sleep-interval-ms/int := (max-wait-time-ms / 10)
+    sleep-interval-ms/int := max 1 (max-wait-time-ms / 10)
     while (not is-conversion-ready):
       sleep --ms=sleep-interval-ms
       current-wait-time-ms += sleep-interval-ms
@@ -322,17 +331,11 @@ class Ina219:
   /**
   Performs a single conversion/measurement.
 
-  If in $MODE_TRIGGERED:  Executes one measurement.
-  If in $MODE_CONTINUOUS: Immediately refreshes data.
-
-  If $wait is set, waits until the conversion is done. By default $wait is
-   true if in $MODE-TRIGGERED.
-  */
-  /**
-  Perform a single conversion/measurement - without waiting.
-
   If in any TRIGGERED mode:  Executes one measurement.
   If in any CONTINUOUS mode: Immediately refreshes data.
+
+  If $wait is set, waits until the conversion is done.  In any triggered mode
+   the call always waits.
   */
   trigger-measurement --wait/bool=false -> none:
     // Clear conversion ready so waiting works.
@@ -369,14 +372,13 @@ class Ina219:
     return raw == 1
 
   clear-conversion-ready -> none:
-    raw := read-register_ REG-POWER_
+    read-register_ REG-POWER_
 
   /**
-  Whether a math overflow exists.  (Reading consumes it.)
+  Whether a math overflow exists (current/power data may be meaningless).
   */
   is-alert-overflow  -> bool:
     raw/int := read-register_ REG-BUS-VOLTAGE_ --mask=OVERFLOW_
-    clear-conversion-ready
     return raw == 1
 
   /**
@@ -568,7 +570,7 @@ class Ina219:
 
     calibration-value/int              := get-calibration-value_
     current-raw/int                    := reg_.read-i16-be REG-SHUNT-CURRENT_
-    least-significant-bit/float        := INTERNAL-SCALING-VALUE_ / (calibration-value.to-float * shunt-resistor_)
+    least-significant-bit/float        := INTERNAL-SCALING-VALUE_ / (calibration-value.to-float * shunt-resistor_)  // Current_LSB, datasheet Eq. 1.
     current-chip/float                 := current-raw * least-significant-bit
     current-v-r/float                  := shunt-voltage / shunt-resistor_
 
@@ -576,7 +578,7 @@ class Ina219:
     current-difference/float           := (current-chip - current-v-r).abs
     current-difference-percent/float   := 0.0
     if (current-v-r != 0.0):
-      current-difference-percent       = (current-difference / current-v-r) * 100.0
+      current-difference-percent       = (current-difference / current-v-r).abs * 100.0
 
     // CROSSCHECK: shunt voltage (measured vs reconstructed).
     shunt-voltage-calculated/float          := current-chip * shunt-resistor_
