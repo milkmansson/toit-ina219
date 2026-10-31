@@ -254,7 +254,7 @@ resistor value. Given in Amps. Caveats:
   - Because Vbus is after the shunt, this approximates power at the load (not at
   the source).
   - Depends on correct calibration.  (Calibration values are care of in this
-    driver when setting `set-shunt-resistor`, and set to 0.100 Ohm by default).
+    driver when setting `set-shunt-resistor` (public; optionally takes `--max-current`), and set to 0.100 Ohm by default).
 
 
 ### Changing the Shunt Resistor

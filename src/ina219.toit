@@ -44,6 +44,7 @@ class Ina219:
   static REG-CALIBRATION_    ::= 0x05  //RW  // Calibration data.
 
   // Configuration Register bitmasks.
+  static CONFIG-POR-VALUE_            ::= 0x399F
   static CONF-RESET-MASK_             ::= 0b10000000_00000000
   static CONF-BUS-VOLTAGE-RANGE-MASK_ ::= 0b00100000_00000000
   static CONF-SHUNT-VOLTAGE-PGA-MASK_ ::= 0b00011000_00000000
@@ -99,9 +100,20 @@ class Ina219:
     reg_ = dev.registers
     shunt-resistor_ = shunt-resistor
 
-    // Maybe not required but the manual suggests it should be done.
-    // Also sets shunt resistor - and calibration value
-    reset_
+    // The INA219 has no ID register, so the power-on-reset values are the only
+    // fingerprint available: Config = 0x399F, Calibration = 0.
+    reset-registers_
+    config-value/int := reg_.read-u16-be REG-CONFIG_
+    calibration-value/int := reg_.read-u16-be REG-CALIBRATION_
+    if (config-value != CONFIG-POR-VALUE_) or (calibration-value != 0):
+      if force:
+        logger_.warn "device did not return INA219 reset values - continuing (--force)"
+            --tags={ "config" : config-value, "calibration" : calibration-value }
+      else:
+        throw "INA219 not found: unexpected register values after reset (use --force to override)"
+
+    // Sets shunt resistor and calibration value.
+    set-shunt-resistor shunt-resistor_
 
     // Initialize Default sampling, conversion timing, and measuring mode.
     set-shunt-adc-resolution-average ADC-RES-AVG-M12-532
@@ -111,13 +123,17 @@ class Ina219:
     // Performing a single measurement during initialisation assists with accuracy for first reads.
     trigger-measurement --wait
 
+  /** Writes the reset bit.  All registers return to power-on values. */
+  reset-registers_ -> none:
+    reg_.write-u16-be REG-CONFIG_ CONF-RESET-MASK_
+
   /**
-  Resets the device.
+  Resets the device, then restores the shunt resistor, calibration and measure mode.
   */
   reset_ -> none:
     last-measure-mode := get-measure-mode
-    write-register_ REG-CONFIG_ 0b1 --mask=CONF-RESET-MASK_
-    set-shunt-resistor_ shunt-resistor_
+    reset-registers_
+    set-shunt-resistor shunt-resistor_
     set-measure-mode last-measure-mode
 
   /**
@@ -126,7 +142,7 @@ class Ina219:
   The calibration value scales the raw sensor data so that it corresponds to
     real-world values, taking into account the shunt resistor value, the
     full-scale range, and other system-specific factors. This value is
-    calculated automatically by the $set-shunt-resistor_ method - setting
+    calculated automatically by the $set-shunt-resistor method - setting
     manually is not normally required, and is private.
   */
   get-calibration-value_ -> int:
@@ -209,7 +225,7 @@ class Ina219:
   set-shunt-voltage-pga-gain-range mode/int -> none:
     write-register_ REG-CONFIG_ mode --mask=CONF-SHUNT-VOLTAGE-PGA-MASK_
     // Full-scale current depends on the PGA range, so recalibrate.
-    set-shunt-resistor_ shunt-resistor_
+    set-shunt-resistor shunt-resistor_
 
   get-shunt-voltage-pga-gain-range -> int:
     return read-register_ REG-CONFIG_ --mask=CONF-SHUNT-VOLTAGE-PGA-MASK_
@@ -244,9 +260,15 @@ class Ina219:
     else: return 16.0
 
   /**
-  Sets the resistor and current range.  See README.md
+  Sets the shunt resistor value, in ohms, and recalculates calibration.
+
+  The calibration is chosen so the current register covers $max-current (amps)
+    at full scale.  By default this is the current that produces the full-scale
+    shunt voltage of the present PGA range (see $set-shunt-voltage-pga-gain-range).
+    A smaller $max-current gives finer current resolution.  See README.md.
   */
-  set-shunt-resistor_ resistor/float --max-current=((get-shunt-voltage-pga-range_.to-float / 1000.0) / resistor) -> none:
+  set-shunt-resistor resistor/float --max-current=((get-shunt-voltage-pga-range_.to-float / 1000.0) / resistor) -> none:
+    assert: resistor > 0.0
     // Cache to class-wide for later use.
     shunt-resistor_ = resistor
     // Cache to class-wide for later use.
