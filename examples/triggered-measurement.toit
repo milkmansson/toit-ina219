@@ -2,7 +2,6 @@
 // Use of this source code is governed by a Zero-Clause BSD license that can
 // be found in the EXAMPLES_LICENSE file.
 
-import gpio
 import i2c
 import ina219 show *
 
@@ -18,9 +17,9 @@ This use case is relevant where a balance is required between Update Speed and
 
 main:
   frequency := 400_000
-  sda   := gpio.Pin 26
-  scl   := gpio.Pin 25
-  bus   := i2c.Bus --sda=sda --scl=scl --frequency=frequency
+  sda   := 19
+  scl   := 20
+  bus   := i2c.Bus --sda=sda --scl=scl --frequency=frequency --pull-up
   event := 0
 
   ina219-device := bus.device Ina219.I2C_ADDRESS

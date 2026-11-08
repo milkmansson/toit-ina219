@@ -254,7 +254,7 @@ resistor value. Given in Amps. Caveats:
   - Because Vbus is after the shunt, this approximates power at the load (not at
   the source).
   - Depends on correct calibration.  (Calibration values are care of in this
-    driver when setting `set-shunt-resistor`, and set to 0.100 Ohm by default).
+    driver when setting `set-shunt-resistor` (public; optionally takes `--max-current`), and set to 0.100 Ohm by default).
 
 
 ### Changing the Shunt Resistor
@@ -289,7 +289,7 @@ If there are any issues, changes, or any other kind of feedback, please
 welcome and appreciated!
 
 ## Disclaimer
-- This driver has been written and tested with an unbranded INA226 module.
+- This driver has been written and tested with an unbranded INA219 module.
 - All trademarks belong to their respective owners.
 - No warranties for this work, express or implied.
 
@@ -308,3 +308,4 @@ One would assume you are here because you know what Toit is.  If you dont:
 > ESP32. [[link](https://toitlang.org/)]
 - [Review on Soracom](https://soracom.io/blog/internet-of-microcontrollers-made-easy-with-toit-x-soracom/)
 - [Review on eeJournal](https://www.eejournal.com/article/its-time-to-get-toit)
+- [Wikipedia](https://en.wikipedia.org/wiki/Toit)
