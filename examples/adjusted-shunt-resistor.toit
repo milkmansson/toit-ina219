@@ -2,7 +2,6 @@
 // Use of this source code is governed by a Zero-Clause BSD license that can
 // be found in the EXAMPLES_LICENSE file.
 
-import gpio
 import i2c
 import ina219 show *
 
@@ -21,11 +20,11 @@ Please see the README.md for example Shunt Resistor values.
 
 main:
   // Adjust these to pin numbers in your setup.
-  sda := gpio.Pin 26
-  scl := gpio.Pin 25
+  sda := 19
+  scl := 20
 
   frequency := 400_000
-  bus := i2c.Bus --sda=sda --scl=scl --frequency=frequency
+  bus := i2c.Bus --sda=sda --scl=scl --frequency=frequency --pull-up
   ina219-device := bus.device Ina219.I2C_ADDRESS
 
   // Creates instance using an 0.010 Ohm shunt resistor
